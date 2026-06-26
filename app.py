@@ -376,7 +376,7 @@ elif st.session_state.phase == "quiz":
     # スマホ用の操作補足ガイド
     st.markdown(
         "<div style='text-align: center; font-size: 0.85rem; color: #777777; margin-bottom: 15px;'>"
-        "← 左の文にあてはまる［ 🔴とても ｜ 🔶すこし ］ 🔷すこし ｜ 🔵とても ］右の文にあてはまる →"
+        "← 左or上の文にあてはまる［ 🔴とても ｜ 🔶すこし ］ 🔷すこし ｜ 🔵とても ］右or下の文にあてはまる →"
         "</div>", 
         unsafe_allow_html=True
     )
