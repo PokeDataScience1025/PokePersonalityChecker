@@ -1,0 +1,14 @@
+[server]
+# staticフォルダ内のファイル(OGP画像など)をブラウザから直接配信できるようにする
+enableStaticServing = true
+
+[theme]
+# スマホ側がダークモード設定でも、常にこのライトテーマで固定表示する。
+# (固定しないと、端末のダークモード時にデフォルトの文字色が白くなり、
+#  背景色を明示指定していないカスタムHTML部分で「白背景に白文字」が発生するため)
+base = "light"
+primaryColor = "#FF3B3B"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#FFF3F0"
+textColor = "#262730"
+font = "sans serif"

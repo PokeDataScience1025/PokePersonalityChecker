@@ -85,7 +85,9 @@ st.markdown("""
         background: linear-gradient(135deg, #FFE8A3 0%, #FFD1DC 100%);
         border-radius: 26px; padding: 1.8rem 1.5rem; text-align: center;
         box-shadow: 0 6px 20px rgba(0,0,0,0.08); margin-bottom: 1.3rem;
+        color: #5a2030;
     }
+    .hero h1 { color: #5a2030 !important; }
     .hero .chips { margin-top: 0.9rem; }
     .chip {
         display: inline-block; background: rgba(255,255,255,0.75); border-radius: 999px;
@@ -95,13 +97,13 @@ st.markdown("""
     .progress-wrap { background:#fff; border-radius: 999px; height: 14px; overflow:hidden; margin: 0.4rem 0 1rem 0; box-shadow: inset 0 1px 3px rgba(0,0,0,0.12);}
     .progress-bar { height:100%; background: linear-gradient(90deg,#FFCB05,#FF5B5B); border-radius:999px; transition: width 0.3s ease; }
 
-    .battle-vs { text-align:center; font-weight:800; color:#ccc; margin: 0.5rem 0; letter-spacing: 2px; }
+    .battle-vs { text-align:center; font-weight:800; color:#999; margin: 0.5rem 0; letter-spacing: 2px; }
     .side-a, .side-b {
-        border-radius:18px; padding:1rem 1.1rem; margin-bottom:0.7rem;
+        border-radius:18px; padding:1rem 1.1rem; margin-bottom:0.7rem; color:#333;
     }
     .side-a { background: linear-gradient(135deg,#FFE3E3,#FFC9C9); }
     .side-b { background: linear-gradient(135deg,#DCEBFF,#C7DFFF); }
-    .side-label { font-weight:700; font-size:1.02rem; line-height:1.5; margin-bottom:0.6rem; text-align:center;}
+    .side-label { font-weight:700; font-size:1.02rem; line-height:1.5; margin-bottom:0.6rem; text-align:center; color:#333;}
     .ab-badge {
         display:inline-block; width:1.6rem; height:1.6rem; line-height:1.6rem;
         border-radius:50%; color:#fff; font-weight:800; text-align:center; margin-right:0.3rem;
@@ -135,18 +137,29 @@ st.markdown("""
         background: linear-gradient(160deg, #FFF7E0 0%, #FFE9EC 100%);
         border-radius: 26px; padding: 1.8rem 1.5rem; text-align: center;
         box-shadow: 0 6px 22px rgba(0,0,0,0.09); margin-bottom: 1.2rem;
-        border: 3px solid #fff;
+        border: 3px solid #fff; color: #5a2030;
     }
+    .result-card h2 { color: #5a2030 !important; }
     .result-card img { max-width: min(280px, 78vw); border-radius: 18px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); }
     .sync-badge {
         display:inline-block; margin-top:0.8rem; background:#fff; color:#FF3B3B;
         font-weight:800; padding: 0.4rem 1.1rem; border-radius: 999px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-    .sub-card { background:#fff; border-radius:18px; padding:1.15rem 1.3rem; margin-bottom:1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.05);}
+    .sub-card { background:#fff; border-radius:18px; padding:1.15rem 1.3rem; margin-bottom:1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.05); color:#333; }
     .personality-line { font-size:1.05rem; font-weight:700; color:#a13; text-align:center; }
 
-    .runner-up { text-align:center; padding:0.7rem; background:#fafafa; border-radius:14px; }
+    .runner-up { text-align:center; padding:0.7rem; background:#fafafa; border-radius:14px; color:#333; }
     .runner-up img { width:100%; max-width:120px; border-radius:12px; }
+
+    /* st.container(border=True)やexpanderなど、Streamlitのネイティブ要素の見出し・本文の
+       文字色も明示しておく(config.tomlのテーマ固定と合わせた二重対策)。 */
+    div[data-testid="stExpander"] summary, div[data-testid="stExpander"] p,
+    div[data-testid="stVerticalBlockBorderWrapper"] p, div[data-testid="stVerticalBlockBorderWrapper"] b,
+    .stMarkdown, .stMarkdown p, .stMarkdown b {
+        color: #333 !important;
+    }
+    .stCaption, [data-testid="stCaptionContainer"] { color: #666 !important; }
+    label, .stTextArea textarea { color: #333 !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -458,7 +471,7 @@ elif st.session_state.phase == "quiz":
     q = quiz_list[idx]
 
     with st.container(border=True):
-        st.markdown('<div style="text-align:center; color:#bbb; font-weight:800; margin-bottom:0.5rem;">'
+        st.markdown('<div style="text-align:center; color:#888; font-weight:800; margin-bottom:0.5rem;">'
                     'AとB、どちらに近い？</div>', unsafe_allow_html=True)
 
         st.markdown(f'<div class="side-a"><div class="side-label">'
@@ -497,7 +510,7 @@ elif st.session_state.phase == "quiz":
             st.rerun()
 
 elif st.session_state.phase == "loading":
-    st.markdown("<h3 style='text-align:center;'>あなたに一番そっくりなポケモンは...</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align:center; color:#5a2030;'>あなたに一番そっくりなポケモンは...</h3>", unsafe_allow_html=True)
     ph = st.empty()
     # 軸ごとに「係数の絶対値」で重み付けした加重平均を取る。
     # 単純に件数で割ると、強い設問(係数1.0)と副次的な設問(係数0.1〜0.3)が
@@ -579,20 +592,20 @@ elif st.session_state.phase == "result":
 
     if match["runner_ups"]:
         with st.container(border=True):
-            st.markdown("<b>🥈 あなたと近いタイプの仲間たち</b>"
-                         "<div style='color:#999; font-size:0.8rem; margin-bottom:0.6rem;'>"
+            st.markdown("<b style='color:#333;'>🥈 あなたと近いタイプの仲間たち</b>"
+                         "<div style='color:#777; font-size:0.8rem; margin-bottom:0.6rem;'>"
                          "同じ「シンクロ度」の基準で計算した、次点候補です。</div>", unsafe_allow_html=True)
             cols = st.columns(2)
             for i, (p, sc) in enumerate(match["runner_ups"]):
                 with cols[i % 2]:
                     if p.get("image"):
                         st.image(p["image"], use_container_width=True)
-                    st.markdown(f"<div style='text-align:center; font-weight:700;'>{p['name']}</div>"
-                                 f"<div style='text-align:center; color:#888; font-size:0.85rem;'>シンクロ度 {sc:.0f}%</div>",
+                    st.markdown(f"<div style='text-align:center; font-weight:700; color:#333;'>{p['name']}</div>"
+                                 f"<div style='text-align:center; color:#777; font-size:0.85rem;'>シンクロ度 {sc:.0f}%</div>",
                                  unsafe_allow_html=True)
 
     with st.container(border=True):
-        st.markdown("<b>📊 あなたの性格グラフ</b>", unsafe_allow_html=True)
+        st.markdown("<b style='color:#333;'>📊 あなたの性格グラフ</b>", unsafe_allow_html=True)
         fig = go.Figure()
         labels = [AXIS_LABEL[a] for a in AXES]
         fig.add_trace(go.Scatterpolar(r=user_vector + [user_vector[0]], theta=labels + [labels[0]],
