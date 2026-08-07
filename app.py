@@ -9,6 +9,43 @@ import uuid
 import requests
 
 # ==============================================================================
+# 0-1. SNS/note埋め込み用のOGPメタタグをHTMLに差し込む
+#      Streamlitは<head>を直接編集するAPIがないため、
+#      配布されているindex.html自体に一度だけ書き込む方式をとる。
+#      (アプリ起動のたびに実行されるが、st.cache_resourceで1プロセスにつき1回だけ実行される)
+# ==============================================================================
+@st.cache_resource
+def _inject_ogp_meta_tags():
+    try:
+        import streamlit as _st_pkg
+        index_path = os.path.join(os.path.dirname(_st_pkg.__file__), "static", "index.html")
+        app_url = "https://pokemon-personality-checker.streamlit.app/"
+        ogp_image_url = app_url.rstrip("/") + "/app/static/ogp.png"
+        meta_tags = f"""
+    <meta property="og:title" content="ポケモン性格診断" />
+    <meta property="og:description" content="30の質問に答えると、あなたに一番近いポケモンがわかる性格診断です。" />
+    <meta property="og:image" content="{ogp_image_url}" />
+    <meta property="og:url" content="{app_url}" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ポケモン性格診断" />
+    <meta name="twitter:description" content="30の質問に答えると、あなたに一番近いポケモンがわかる性格診断です。" />
+    <meta name="twitter:image" content="{ogp_image_url}" />
+    <meta name="description" content="30の質問に答えると、あなたに一番近いポケモンがわかる性格診断です。" />
+    """
+        with open(index_path, "r", encoding="utf-8") as f:
+            html = f.read()
+        if "og:title" not in html:
+            html = html.replace("<head>", "<head>" + meta_tags, 1)
+            with open(index_path, "w", encoding="utf-8") as f:
+                f.write(html)
+    except Exception:
+        pass  # メタタグの挿入に失敗してもアプリ自体は問題なく動く
+    return True
+
+_inject_ogp_meta_tags()
+
+# ==============================================================================
 # 0. 画面基本設定 & デザイン
 # ==============================================================================
 st.set_page_config(page_title="ポケモン性格診断", page_icon="🐾", layout="centered")

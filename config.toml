@@ -1,0 +1,3 @@
+[server]
+# staticフォルダ内のファイル(OGP画像など)をブラウザから直接配信できるようにする
+enableStaticServing = true
