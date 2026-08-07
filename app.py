@@ -5,327 +5,360 @@ import json
 import os
 import random
 import time
+import uuid
+import requests
 
 # ==============================================================================
-# 0. 画面基本設定
+# 0. 画面基本設定 & デザイン
 # ==============================================================================
 st.set_page_config(page_title="ポケモン性格診断", page_icon="🐾", layout="centered")
 
 st.markdown("""
     <style>
-    div.stButton > button {
-        width: 100%;
-        padding: 0.5rem 0;
-        font-size: 1.2rem;
+    @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap');
+
+    html, body, [class*="css"] { font-family: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', sans-serif; }
+
+    .stApp {
+        background: radial-gradient(circle at 10% 0%, #FFF6D8 0%, #FFF0F0 45%, #EAF3FF 100%);
     }
+    .block-container { padding-top: 1.6rem; padding-bottom: 3rem; max-width: 700px; }
+    footer {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+
+    h1 { font-size: clamp(1.6rem, 5.5vw, 2.3rem) !important; font-weight: 800 !important; text-align: center; }
+    h2, h3 { font-weight: 800 !important; }
+
+    @keyframes bounce { 0%,100%{transform: translateY(0);} 50%{transform: translateY(-8px);} }
+    .bounce { display:inline-block; animation: bounce 1.6s ease-in-out infinite; }
+
+    div.stButton > button {
+        width: 100%; min-height: 3.3rem; padding: 0.6rem 1rem;
+        font-size: 1.05rem; font-weight: 700; border-radius: 16px;
+        border: none; margin-bottom: 0.55rem; transition: all 0.15s ease;
+        box-shadow: 0 3px 0 rgba(0,0,0,0.08);
+    }
+    div.stButton > button:hover { transform: translateY(-2px); box-shadow: 0 5px 0 rgba(0,0,0,0.1); }
+    div.stButton > button:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0,0,0,0.08); }
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #FF5B5B 0%, #FF3B3B 100%); color: white;
+    }
+
+    .hero {
+        background: linear-gradient(135deg, #FFE8A3 0%, #FFD1DC 100%);
+        border-radius: 26px; padding: 1.8rem 1.5rem; text-align: center;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.08); margin-bottom: 1.3rem;
+    }
+    .hero .chips { margin-top: 0.9rem; }
+    .chip {
+        display: inline-block; background: rgba(255,255,255,0.75); border-radius: 999px;
+        padding: 0.35rem 0.9rem; margin: 0.2rem; font-size: 0.85rem; font-weight: 700; color:#a15;
+    }
+
+    .progress-wrap { background:#fff; border-radius: 999px; height: 14px; overflow:hidden; margin: 0.4rem 0 1rem 0; box-shadow: inset 0 1px 3px rgba(0,0,0,0.12);}
+    .progress-bar { height:100%; background: linear-gradient(90deg,#FFCB05,#FF5B5B); border-radius:999px; transition: width 0.3s ease; }
+
+    .battle-vs { text-align:center; font-weight:800; color:#ccc; margin: 0.5rem 0; letter-spacing: 2px; }
+    .side-a, .side-b {
+        border-radius:18px; padding:1rem 1.1rem; margin-bottom:0.7rem;
+    }
+    .side-a { background: linear-gradient(135deg,#FFE3E3,#FFC9C9); }
+    .side-b { background: linear-gradient(135deg,#DCEBFF,#C7DFFF); }
+    .side-label { font-weight:700; font-size:1.02rem; line-height:1.5; margin-bottom:0.6rem; text-align:center;}
+    .ab-badge {
+        display:inline-block; width:1.6rem; height:1.6rem; line-height:1.6rem;
+        border-radius:50%; color:#fff; font-weight:800; text-align:center; margin-right:0.3rem;
+    }
+    .ab-badge-a { background:#E53935; }
+    .ab-badge-b { background:#1E6FE0; }
+
+    /* 回答ボタンの色分け: 左列=Aに近い(赤系)、右列=Bに近い(青系)。
+       強さ(とても/やや)は type="primary"かどうかで判定する。
+       st.columns()が生成する column要素を列番号で直接指定するため、
+       前回までの兄弟セレクタ方式より確実に効く。Streamlitのバージョン差異に備えて
+       data-testidが "column" のものと "stColumn" のもの、両方に効くようにしている。 */
+    div[data-testid="column"]:nth-of-type(1) div.stButton button,
+    div[data-testid="stColumn"]:nth-of-type(1) div.stButton button {
+        background: #FFE1DE !important; color: #B71C1C !important;
+    }
+    div[data-testid="column"]:nth-of-type(1) div.stButton button[kind="primary"],
+    div[data-testid="stColumn"]:nth-of-type(1) div.stButton button[kind="primary"] {
+        background: linear-gradient(135deg,#FF8A80,#E53935) !important; color:#fff !important;
+    }
+    div[data-testid="column"]:nth-of-type(2) div.stButton button,
+    div[data-testid="stColumn"]:nth-of-type(2) div.stButton button {
+        background: #DCEBFF !important; color: #0D47A1 !important;
+    }
+    div[data-testid="column"]:nth-of-type(2) div.stButton button[kind="primary"],
+    div[data-testid="stColumn"]:nth-of-type(2) div.stButton button[kind="primary"] {
+        background: linear-gradient(135deg,#64B5F6,#1E6FE0) !important; color:#fff !important;
+    }
+
+    .result-card {
+        background: linear-gradient(160deg, #FFF7E0 0%, #FFE9EC 100%);
+        border-radius: 26px; padding: 1.8rem 1.5rem; text-align: center;
+        box-shadow: 0 6px 22px rgba(0,0,0,0.09); margin-bottom: 1.2rem;
+        border: 3px solid #fff;
+    }
+    .result-card img { max-width: min(280px, 78vw); border-radius: 18px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); }
+    .sync-badge {
+        display:inline-block; margin-top:0.8rem; background:#fff; color:#FF3B3B;
+        font-weight:800; padding: 0.4rem 1.1rem; border-radius: 999px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .sub-card { background:#fff; border-radius:18px; padding:1.15rem 1.3rem; margin-bottom:1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.05);}
+    .personality-line { font-size:1.05rem; font-weight:700; color:#a13; text-align:center; }
+
+    .runner-up { text-align:center; padding:0.7rem; background:#fafafa; border-radius:14px; }
+    .runner-up img { width:100%; max-width:120px; border-radius:12px; }
     </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 1. データの定義（小学生でもわかる表現・短文・重みづけを0.1〜1.0に調整）
+# 1. データ定義: 6軸 x 30問
 # ==============================================================================
+AXES = ["kindness", "sociability_vs_independence", "curiosity_openness",
+        "boldness", "passion_vs_calm", "conscientiousness"]
+
+AXIS_LABEL = {
+    "kindness": "🩷 優しさ・思いやり",
+    "sociability_vs_independence": "🤝 社交性⇔自立性",
+    "curiosity_openness": "🔍 好奇心・開放性",
+    "boldness": "🔥 勇敢さ・行動力",
+    "passion_vs_calm": "💥 情熱⇔冷静",
+    "conscientiousness": "📐 誠実さ・几帳面さ",
+}
+
+AXIS_PHRASE = {
+    "kindness": {"high": "誰かのために動ける、根っからの優しさを持つタイプ",
+                 "low": "感情に流されず、物事を冷静に判断できるタイプ"},
+    "sociability_vs_independence": {"high": "仲間と一緒にいるとパワーが出る、みんな大好きタイプ",
+                                     "low": "自分のペースを大事にする、しっかり者の一匹狼タイプ"},
+    "curiosity_openness": {"high": "新しいことにワクワクが止まらない、冒険好きタイプ",
+                            "low": "好きな場所・やり方をとことん極める、こだわりタイプ"},
+    "boldness": {"high": "ピンチのときほど燃える、頼れる勇者タイプ",
+                 "low": "石橋を叩いて渡る、慎重で堅実なタイプ"},
+    "passion_vs_calm": {"high": "気持ちがすぐ表に出る、情熱あふれるタイプ",
+                         "low": "どんなときも動じない、冷静沈着タイプ"},
+    "conscientiousness": {"high": "コツコツ積み重ねができる、几帳面タイプ",
+                           "low": "勢いと直感で動く、自由なタイプ"},
+}
+
 QUESTIONS = [
-    # --- 優しさ ---
-    {
-        "a": "相談にのるときは相手のきもちに味方する", 
-        "b": "相談にのるときは正しいアドバイスを伝える",
-        "effects": {"優しさ": 1.0, "協調性": 0.3, "穏やかさ": 0.1, "自立性": -0.3}
-    },
-    {
-        "a": "困っている人がいたらほっとけない", 
-        "b": "相手のことを考えてそっとしておいてあげる",
-        "effects": {"優しさ": 1.0, "勇敢さ": 0.3, "情熱": 0.1, "穏やかさ": -0.1}
-    },
-    {
-        "a": "意見があわないときは自分がゆずることが多い", 
-        "b": "納得いかないときは自分の意見をしっかり言う",
-        "effects": {"優しさ": 1.0, "協調性": 0.3, "穏やかさ": 0.1, "勇敢さ": -0.3, "自立性": -0.3}
-    },
-    
-    # --- 協調性 ---
-    {
-        "a": "みんなで集まってワイワイ遊ぶのが好き", 
-        "b": "ひとりで趣味に集中して過ごすのが好き",
-        "effects": {"協調性": 1.0, "優しさ": 0.1, "自立性": -0.3, "マイペースさ": -0.3}
-    },
-    {
-        "a": "外出では相手の行きたい場所に合わせる", 
-        "b": "「ここに行こう！」と自分からどんどん提案する",
-        "effects": {"協調性": 1.0, "穏やかさ": 0.1, "勇敢さ": -0.3, "マイペースさ": -0.1}
-    },
-    {
-        "a": "チームみんなで一緒にやりたい", 
-        "b": "自分の仕事をひとりでやる方が楽",
-        "effects": {"協調性": 1.0, "誠実さ": 0.1, "自立性": -0.3}
-    },
-    
-    # --- 好奇心 ---
-    {
-        "a": "はじめての体験にワクワクする", 
-        "b": "お気に入りの場所で過ごすのが落ち着く",
-        "effects": {"好奇心": 1.0, "勇敢さ": 0.3, "情熱": 0.1, "穏やかさ": -0.1}
-    },
-    {
-        "a": "新しいものをすぐ調べたくなる", 
-        "b": "流行りはあまり気にしない",
-        "effects": {"好奇心": 1.0, "知性": 0.3, "誠実さ": 0.1}
-    },
-    {
-        "a": "新しいことにどんどんチャレンジしたい", 
-        "b": "得意なことをやり込みたい",
-        "effects": {"好奇心": 1.0, "勇敢さ": 0.3, "情熱": 0.1, "マイペースさ": -0.1}
-    },
-    
-    # --- 勇敢さ ---
-    {
-        "a": "むずかしい目標ほど「やってやる」と燃える", 
-        "b": "あんぜんで確実な道を選びたい",
-        "effects": {"勇敢さ": 1.0, "好奇心": 0.3, "情熱": 0.3, "知性": -0.1, "誠実さ": -0.1}
-    },
-    {
-        "a": "失敗してもすぐ次にむけて立ち上がる", 
-        "b": "失敗をしばらく引きずってしまう",
-        "effects": {"勇敢さ": 1.0, "情熱": 0.3, "穏やかさ": -0.1}
-    },
-    {
-        "a": "人前でもあまり緊張しない", 
-        "b": "人前では緊張してドキドキする",
-        "effects": {"勇敢さ": 1.0, "自立性": 0.1, "穏やかさ": 0.1}
-    },
-    
-    # --- 穏やかさ ---
-    {
-        "a": "イライラすることはめったにない", 
-        "b": "気持ちがすぐ顔に出やすい",
-        "effects": {"穏やかさ": 1.0, "優しさ": 0.3, "協調性": 0.1, "情熱": -0.3}
-    },
-    {
-        "a": "まわりを気にせず自分のことに集中できる", 
-        "b": "にぎやかすぎる場所はつかれる",
-        "effects": {"穏やかさ": 1.0, "マイペースさ": 0.3, "好奇心": -0.1}
-    },
-    {
-        "a": "トラブルにもあわてず冷静にいられる", 
-        "b": "あせったりパニックになったりしやすい",
-        "effects": {"穏やかさ": 1.0, "知性": 0.1, "情熱": -0.3}
-    },
-    
-    # --- 知性 ---
-    {
-        "a": "やり方や順番を考えてから動く", 
-        "b": "手を動かしてやりながら考える",
-        "effects": {"知性": 1.0, "誠実さ": 0.3, "好奇心": -0.1}
-    },
-    {
-        "a": "仕組みを考えるのが好き", 
-        "b": "自分のカンやセンスを信じたい",
-        "effects": {"知性": 1.0, "誠実さ": 0.3, "マイペースさ": -0.3, "好奇心": -0.1}
-    },
-    {
-        "a": "頭をつかうゲームが得意だ", 
-        "b": "体をうごかす方が好き",
-        "effects": {"知性": 1.0, "好奇心": 0.1, "情熱": -0.1}
-    },
-    
-    # --- 自立性 ---
-    {
-        "a": "まわりの意見に流されず自分で決めたい", 
-        "b": "みんなの意見をきいて決めたい",
-        "effects": {"自立性": 1.0, "マイペースさ": 0.3, "勇敢さ": 0.1, "協調性": -0.3, "優しさ": -0.1}
-    },
-    {
-        "a": "ひとりでの行動も楽しめる", 
-        "b": "だれかといっしょに行動したい",
-        "effects": {"自立性": 1.0, "穏やかさ": 0.1, "協調性": -0.3}
-    },
-    {
-        "a": "ひとりの時間をとても大切にしている", 
-        "b": "なんでもオープンに共有しあえる関係が好き",
-        "effects": {"自立性": 1.0, "誠実さ": 0.3, "協調性": -0.3}
-    },
-    
-    # --- 誠実さ ---
-    {
-        "a": "締め切りや約束の時間は、絶対にまもりたい", 
-        "b": "そのときの状況にあわせて変えてもいいと思う",
-        "effects": {"誠実さ": 1.0, "知性": 0.1, "マイペースさ": -0.3}
-    },
-    {
-        "a": "まじめにコツコツ取り組む", 
-        "b": "最後にいっきに終わらせる",
-        "effects": {"誠実さ": 1.0, "知性": 0.3, "情熱": -0.1}
-    },
-    {
-        "a": "お世辞やウソをつくのが苦手", 
-        "b": "話を合わせたり盛り上げたりする",
-        "effects": {"誠実さ": 1.0, "優しさ": 0.1, "協調性": -0.1}
-    },
-    
-    # --- 情熱 ---
-    {
-        "a": "時間を忘れて全力で熱中する", 
-        "b": "大好きなことでも、どこか冷静なことが多い",
-        "effects": {"情熱": 1.0, "好奇心": 0.3, "勇敢さ": 0.1, "穏やかさ": -0.3, "誠実さ": -0.1}
-    },
-    {
-        "a": "感情をはっきり出す方だ", 
-        "b": "あまり感情を顔に出さない",
-        "effects": {"情熱": 1.0, "勇敢さ": 0.1, "穏やかさ": -0.3}
-    },
-    {
-        "a": "やるからには「一番になりたい」という気持ちがある", 
-        "b": "自分が楽しくマイペースにできればOK",
-        "effects": {"情熱": 1.0, "マイペースさ": 0.3, "協調性": -0.1}
-    },
-    
-    # --- マイペースさ ---
-    {
-        "a": "まわりが急かしても自分のペースを絶対に崩さない", 
-        "b": "まわりのスピードやその場の空気に自分を合わせる",
-        "effects": {"マイペースさ": 1.0, "自立性": 0.3, "穏やかさ": 0.1, "協調性": -0.3}
-    },
-    {
-        "a": "自分が「これが好き」という感覚を信じる", 
-        "b": "流行りは遅れないようにチェックする",
-        "effects": {"マイペースさ": 1.0, "自立性": 0.3, "好奇心": -0.1, "協調性": -0.1}
-    },
-    {
-        "a": "自分だけのこだわりやルーティンがある", 
-        "b": "その場の環境や相手に合わせられる",
-        "effects": {"マイペースさ": 1.0, "知性": 0.1, "協調性": -0.3}
-    }
+    {"a": "困っている人を見るとほうっておけない", "b": "まずは自分のことを優先する",
+     "effects": {"kindness": 1.0, "sociability_vs_independence": 0.3}},
+    {"a": "友達が落ち込んでいたら、自分のことのように心配する", "b": "深入りせず、そっと距離をとる",
+     "effects": {"kindness": 1.0, "passion_vs_calm": 0.2}},
+    {"a": "誰かのために自分の時間を使うのは苦じゃない", "b": "自分の時間は自分のために使いたい",
+     "effects": {"kindness": 1.0, "sociability_vs_independence": 0.3}},
+    {"a": "勝負ごとでも、弱っている相手には手加減したくなる", "b": "勝負ごとは手加減せず全力でいく",
+     "effects": {"kindness": 1.0, "boldness": -0.2}},
+    {"a": "人の気持ちの変化によく気づくほうだ", "b": "人の気持ちより物事の結果を重視する",
+     "effects": {"kindness": 1.0, "conscientiousness": 0.2}},
+
+    {"a": "みんなでワイワイ過ごす時間が好き", "b": "一人で静かに過ごす時間が好き",
+     "effects": {"sociability_vs_independence": 1.0, "kindness": 0.3}},
+    {"a": "何をするにも仲間と一緒がいい", "b": "一人で自由に動くほうが性に合う",
+     "effects": {"sociability_vs_independence": 1.0, "curiosity_openness": -0.1}},
+    {"a": "初対面の人ともすぐ打ち解けられる", "b": "知らない相手には最初、警戒してしまう",
+     "effects": {"sociability_vs_independence": 1.0, "boldness": 0.2}},
+    {"a": "チームの輪を大事にしたい", "b": "自分のペースを乱されたくない",
+     "effects": {"sociability_vs_independence": 1.0, "conscientiousness": -0.1}},
+    {"a": "縄張りやテリトリーにあまりこだわらない", "b": "自分の場所や持ち物には強いこだわりがある",
+     "effects": {"sociability_vs_independence": 1.0, "kindness": 0.2}},
+
+    {"a": "知らない場所に行くとワクワクする", "b": "慣れた場所にいるのが一番落ち着く",
+     "effects": {"curiosity_openness": 1.0, "boldness": 0.3}},
+    {"a": "新しいものはすぐ試してみたくなる", "b": "使い慣れたものをずっと使い続けたい",
+     "effects": {"curiosity_openness": 1.0, "conscientiousness": -0.2}},
+    {"a": "予定が急に変わってもワクワクする方だ", "b": "決まった予定通りに進むと安心する",
+     "effects": {"curiosity_openness": 1.0, "conscientiousness": -0.3}},
+    {"a": "知らないことはすぐ調べたくなる", "b": "知らないことは知らないままでも気にならない",
+     "effects": {"curiosity_openness": 1.0, "passion_vs_calm": 0.1}},
+    {"a": "いつもと違うやり方を試したくなる", "b": "いつも同じやり方が一番うまくいくと思う",
+     "effects": {"curiosity_openness": 1.0, "conscientiousness": -0.2}},
+
+    {"a": "強い相手ほど、燃えてくる", "b": "強い相手には近づかないようにする",
+     "effects": {"boldness": 1.0, "passion_vs_calm": 0.3}},
+    {"a": "危険があっても、まず動いてみる", "b": "危険があるなら、様子を見てから動く",
+     "effects": {"boldness": 1.0, "curiosity_openness": 0.2}},
+    {"a": "注目される場面でも物おじしない", "b": "注目されるとつい緊張してしまう",
+     "effects": {"boldness": 1.0, "passion_vs_calm": 0.2}},
+    {"a": "やられたら、やり返さないと気がすまない", "b": "争いごとはできるだけ避けたい",
+     "effects": {"boldness": 1.0, "kindness": -0.2}},
+    {"a": "ピンチのときほど頼りになると言われる", "b": "ピンチのときは誰かに頼りたくなる",
+     "effects": {"boldness": 1.0, "sociability_vs_independence": -0.1}},
+
+    {"a": "感情がすぐ顔や態度に出る", "b": "感情はあまり表に出さない",
+     "effects": {"passion_vs_calm": 1.0, "boldness": 0.2}},
+    {"a": "熱くなると周りが見えなくなることがある", "b": "どんなときも一歩引いて冷静でいられる",
+     "effects": {"passion_vs_calm": 1.0, "conscientiousness": -0.2}},
+    {"a": "好きなことには全力で夢中になる", "b": "好きなことでも、どこか一歩引いて楽しむ",
+     "effects": {"passion_vs_calm": 1.0, "curiosity_openness": 0.1}},
+    {"a": "怒るときは思いきり怒る", "b": "腹が立ってもあまり顔に出さない",
+     "effects": {"passion_vs_calm": 1.0, "kindness": -0.1}},
+    {"a": "テンションの上がり下がりが激しい方だ", "b": "いつも同じくらいのテンションでいる",
+     "effects": {"passion_vs_calm": 1.0, "conscientiousness": -0.1}},
+
+    {"a": "毎日同じ時間に同じことをするのが落ち着く", "b": "日によって過ごし方が変わる方が楽しい",
+     "effects": {"conscientiousness": 1.0, "curiosity_openness": -0.2}},
+    {"a": "物の置き場所や順番をきっちり決めている", "b": "物の場所は特に決めずその都度置く",
+     "effects": {"conscientiousness": 1.0, "passion_vs_calm": -0.1}},
+    {"a": "一度決めたルールは最後まで守りたい", "b": "状況に応じてルールは変えてもいいと思う",
+     "effects": {"conscientiousness": 1.0, "curiosity_openness": -0.1}},
+    {"a": "コツコツ準備してから物事に取りかかる", "b": "勢いに任せてまず取りかかる",
+     "effects": {"conscientiousness": 1.0, "boldness": -0.2}},
+    {"a": "忘れ物や遅刻はほとんどしない", "b": "うっかり忘れ物や遅刻をしてしまうことがある",
+     "effects": {"conscientiousness": 1.0}},
 ]
 
-TRAIT_POSITIVE_TEXT = {
-    "優しさ": "誰もが安心できる、バツグンの思いやりと優しさを持っています！",
-    "協調性": "みんなの調和を大切にできる、チームの頼れるバランサーです！",
-    "好奇心": "新しいことやワクワクすることを見つける、冒険心が旺盛なタイプ！",
-    "勇敢さ": "ピンチや新しい挑戦にもひるまない、強い行動力の持ち主です！",
-    "穏やかさ": "いつもドシッと構えていて、周囲をホッとさせる癒やし系です！",
-    "知性": "物事をじっくり筋道立てて考えられる、スマートな知性派です！",
-    "自立性": "自分の軸をしっかり持っていて、一人でも力強く進める人です！",
-    "誠実さ": "約束やルールを重んじる、みんなからの信頼がとっても厚い誠実派！",
-    "情熱": "これ！と決めたものに全力でエネルギーを注げる熱い心の持ち主！",
-    "マイペースさ": "周りに流されず、自分らしい素敵なりずむを大切にできる人です！"
-}
-
-TRAIT_NEGATIVE_TEXT = {
-    "優しさ": "感情に流されず、状況をピシッと客観的に判断できるクールさを持っています！",
-    "協調性": "自分の力で道を切り拓くのが得意な、単独行動もへっちゃらなタイプ！",
-    "好奇心": "一つの場所や慣れ親しんだ環境をじっくり大切に育てる、安定感があります！",
-    "勇敢さ": "失敗を避けるために一歩立ち止まり、慎重に準備ができる堅実派です！",
-    "穏やかさ": "豊かな感受性を持っていて、自分の気持ちに素直に動ける人です！",
-    "知性": "理屈にとらわれず、自分のピーンときた直感や感覚を信じて動ける天才肌！",
-    "自立性": "みんなと協力したり、上手に甘えたりしながら進める愛され上手！",
-    "誠実さ": "ガチガチのルールに縛られず、その場の状況に臨機応変に対応できる柔軟な人！",
-    "情熱": "いつも冷静沈着で、どんなときも落ち着いて淡々とこなせるポーカーフェイス！",
-    "マイペースさ": "周りの変化や新しい環境にスッとなじめる、高い適応力を持っています！"
-}
-
-# ネガティブ表現を避けるための言い換え
-TRAIT_ALTERNATIVE_TITLES = {
-    "優しさ": "論理的",
-    "協調性": "自立心",
-    "好奇心": "安定感",
-    "勇敢さ": "堅実さ",
-    "穏やかさ": "素直さ",
-    "知性": "感覚派",
-    "自立性": "協調性",
-    "誠実さ": "臨機応変",
-    "情熱": "冷静さ",
-    "マイペースさ": "柔軟性"
-}
-
-TRAIT_KEYS = list(TRAIT_POSITIVE_TEXT.keys())
+LOADING_MESSAGES = [
+    "図鑑を読み込み中... 📖", "性格の波長を調べています... 📡",
+    "似たタイプの仲間を探索中... 🔍", "相棒を呼び出しています... ✨",
+]
 
 # ==============================================================================
-# 2. JSONファイルからデータをロード・統合する関数
+# 2. データロード
 # ==============================================================================
+DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+VEC_PATH = os.path.join(DATA_DIR, "pokemon_trait_vectors_v2.json")
+DISP_PATH = os.path.join(DATA_DIR, "pokemon_display_data.json")
+EXCLUDED_PATH = os.path.join(DATA_DIR, "excluded_pokemon_full.json")
+
+@st.cache_data
+def load_excluded_pokemon():
+    if not os.path.exists(EXCLUDED_PATH):
+        return []
+    with open(EXCLUDED_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
 @st.cache_data
 def load_pokemon_database():
-    cache_path = "pokemon_cache_compact.json"
-    vectors_path = "pokemon_trait_vectors.json"
-    
-    if not os.path.exists(cache_path) or not os.path.exists(vectors_path):
-        return [
-            {"id": 25, "name": "ピカチュウ", "description": "お互いの尻尾をくっつけあって電気を流しあうのが仲間の挨拶だ。", "vector": [0.0]*10, "image": None}
-        ]
-        
-    with open(cache_path, "r", encoding="utf-8") as f:
-        cache_data = json.load(f)
-    with open(vectors_path, "r", encoding="utf-8") as f:
-        vector_data = json.load(f)
-        
-    compiled_db = []
-    
-    for poke_id_str, raw_vector in vector_data.items():
-        if poke_id_str in cache_data:
-            info = cache_data[poke_id_str]
-            poke_id = int(poke_id_str)
-            poke_name_ja = info.get("name_ja", f"ポケモンNo.{poke_id}")
-            
-            if isinstance(raw_vector, dict):
-                vector = [float(raw_vector.get(trait, 0.0)) for trait in TRAIT_KEYS]
-            else:
-                vector = [float(v) for v in raw_vector]
-            
-            poke_data = info.get("pokemon_data", {})
-            sprites = poke_data.get("sprites", {})
-            
-            image_url = sprites.get("other", {}).get("official-artwork", {}).get("front_default")
-            if not image_url:
-                image_url = sprites.get("front_default")
-            
-            flavor_entries = []
-            if "species_data" in info and isinstance(info["species_data"], dict):
-                flavor_entries = info["species_data"].get("flavor_text_entries", [])
-            
-            japanese_texts = []
-            for entry in flavor_entries:
-                lang = entry.get("language", {}).get("name", "")
-                text = entry.get("flavor_text", "")
-                text = text.replace("\n", " ").replace("\f", " ").replace("\t", " ").strip()
-                if lang == "ja" and text:
-                    if text not in japanese_texts:
-                        japanese_texts.append(text)
-            
-            if japanese_texts:
-                description = random.choice(japanese_texts)
-            else:
-                description = f"{poke_name_ja}は、まだ多くの謎に包まれているポケモンのようです！これからの冒険で生態を解き明かしましょう！"
-            
-            compiled_db.append({
-                "id": poke_id,
-                "name": poke_name_ja,
-                "description": description,
-                "vector": vector,
-                "image": image_url
-            })
-            
-    return compiled_db
+    with open(VEC_PATH, "r", encoding="utf-8") as f:
+        vectors = json.load(f)
+    with open(DISP_PATH, "r", encoding="utf-8") as f:
+        display = json.load(f)
 
-def find_best_match_pokemon(user_vector):
-    database = load_pokemon_database()
-    best_pokemon = None
-    max_similarity = -1.0
-    u_vec = np.array(user_vector)
-    u_norm = np.linalg.norm(u_vec)
-    if u_norm == 0: u_norm = 1e-9
+    db = []
+    for pid_str, v in vectors.items():
+        disp = display.get(pid_str, {})
+        vec = [float(v["scores"][a]) for a in AXES]
+        db.append({
+            "id": int(pid_str),
+            "name": v.get("name_ja") or disp.get("name_ja", f"ポケモンNo.{pid_str}"),
+            "vector": vec,
+            "description": disp.get("description", ""),
+            "image": disp.get("image_url"),
+            "evidence": v.get("evidence", ""),
+        })
 
-    for p in database:
-        p_vec = np.array(p["vector"])
-        p_norm = np.linalg.norm(p_vec)
-        if p_norm == 0: p_norm = 1e-9
-        similarity = np.dot(u_vec, p_vec) / (u_norm * p_norm)
-        if similarity > max_similarity:
-            max_similarity = similarity
-            best_pokemon = p
-                
-    return best_pokemon, float(max_similarity)
+    mat = np.array([p["vector"] for p in db])
+    mean = mat.mean(axis=0)
+    std = mat.std(axis=0)
+    std[std == 0] = 1.0
+    return db, mean, std
+
+# 標準化空間での距離を「シンクロ度(%)」に変換するための固定基準値。
+# 982匹データ・実際の質問セットでのシミュレーションから、
+# 「一番近い match の中央値」がだいたい90%前後になるよう校正した固定値。
+# 上位8件はどれもこの基準に対して近い距離のため、選ばれた結果と近いタイプの
+# 候補とで数値が矛盾しない（=シンクロ度が逆転しない）ようにするのが狙い。
+SYNC_DISTANCE_REF = 8.5
+
+def _distance_to_sync(d):
+    return max(0.0, min(100.0, 100.0 * (1 - d / SYNC_DISTANCE_REF)))
+
+def find_match(user_vector):
+    """標準化ユークリッド距離で最も近い1体を「診断結果」として確定で選ぶ(常に本当の最近傍)。
+    2位・3位を「近いタイプの仲間」として表示するため、シンクロ度は
+    結果 >= 仲間1 >= 仲間2 の順で必ず一貫する（逆転しない）。
+    戻り値: {"chosen": dict, "sync_score": float, "runner_ups": [(dict, float), ...]} または None
+    """
+    db, mean, std = load_pokemon_database()
+    if not db:
+        return None
+
+    u = (np.array(user_vector) - mean) / std
+    dists = []
+    for p in db:
+        v = (np.array(p["vector"]) - mean) / std
+        dists.append(float(np.linalg.norm(u - v)))
+
+    order = np.argsort(dists)  # 距離が近い順
+    ranked = [(db[i], dists[i]) for i in order]
+
+    chosen, chosen_d = ranked[0]
+    runner_ups = [(p, _distance_to_sync(d)) for p, d in ranked[1:3]]
+    sync_score = _distance_to_sync(chosen_d)
+    return {"chosen": chosen, "sync_score": sync_score, "runner_ups": runner_ups}
+
+def personality_blurb(user_vector):
+    deviations = [(AXES[i], abs(user_vector[i] - 50), user_vector[i]) for i in range(len(AXES))]
+    deviations.sort(key=lambda x: x[1], reverse=True)
+    lines = []
+    for axis, _, score in deviations[:2]:
+        pole = "high" if score >= 50 else "low"
+        lines.append(AXIS_PHRASE[axis][pole])
+    return "、それに".join(lines) + "。"
 
 # ==============================================================================
-# 3. アプリケーション状態管理
+# 3. Supabase 連携（未設定でもアプリは動く）
 # ==============================================================================
+def _supabase_conf():
+    try:
+        return st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_ANON_KEY"]
+    except Exception:
+        return None, None
+
+def log_play_event(event_type, result_pokemon_id=None, sync_score=None):
+    url, key = _supabase_conf()
+    if not url:
+        return
+    try:
+        requests.post(
+            f"{url}/rest/v1/play_events",
+            headers={"apikey": key, "Authorization": f"Bearer {key}",
+                     "Content-Type": "application/json", "Prefer": "return=minimal"},
+            json={"session_id": st.session_state.get("session_id"), "event_type": event_type,
+                  "result_pokemon_id": result_pokemon_id, "sync_score": sync_score},
+            timeout=3,
+        )
+    except Exception:
+        pass
+
+def submit_feedback(message, related_pokemon_id=None):
+    url, key = _supabase_conf()
+    if not url:
+        return False
+    try:
+        resp = requests.post(
+            f"{url}/rest/v1/feedback",
+            headers={"apikey": key, "Authorization": f"Bearer {key}",
+                     "Content-Type": "application/json", "Prefer": "return=minimal"},
+            json={"message": message, "related_pokemon_id": related_pokemon_id,
+                  "session_id": st.session_state.get("session_id")},
+            timeout=5,
+        )
+        return resp.status_code < 300
+    except Exception:
+        return False
+
+# ==============================================================================
+# 4. データファイルの存在チェック（ここで落ちないようにする）
+# ==============================================================================
+missing = [p for p in (VEC_PATH, DISP_PATH) if not os.path.exists(p)]
+if missing:
+    st.error(
+        "性格データファイルが見つかりません。以下のファイルを `app.py` と同じフォルダに置いてください。\n\n"
+        + "\n".join(f"- {os.path.basename(p)}" for p in missing)
+        + f"\n\napp.pyのフォルダ: `{DATA_DIR}`"
+    )
+    st.stop()
+
+# ==============================================================================
+# 5. アプリ状態管理
+# ==============================================================================
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
 if "current_q" not in st.session_state:
     st.session_state.current_q = 0
 if "answers" not in st.session_state:
@@ -334,194 +367,222 @@ if "phase" not in st.session_state:
     st.session_state.phase = "start"
 if "shuffled_questions" not in st.session_state:
     st.session_state.shuffled_questions = []
+if "result" not in st.session_state:
+    st.session_state.result = None
 
 # ==============================================================================
-# 4. 画面遷移
+# 6. 画面遷移
 # ==============================================================================
 
 if st.session_state.phase == "start":
-    st.title("🐾 ポケモン性格診断")
-    st.write("---")
-    st.markdown(f"""
-    いくつかの質問に答えるだけで、あなたの行動パターンや性格タイプを分析！\n
-    たくさんのポケモンたちの中から、**あなたに一番そっくりな仲間**を見つけ出します。
-    
-    * **質問の数:** {len(QUESTIONS)}問
-    * **かかる時間:** 1〜2分くらい
-    * **注意点:** 試作段階です。おかしな結果が出てもお許しください！
-    """)
-    st.write("")
-    if st.button("診断をスタート！", type="primary", use_container_width=True):
+    st.markdown("""
+    <div class="hero">
+      <div style="font-size:3rem;" class="bounce">🐾</div>
+      <h1>きみの相棒ポケモンを見つけよう！</h1>
+      <p style="color:#a15; font-weight:600;">30個の質問に答えるだけで、あなたの性格タイプを分析。<br>
+      約1000匹の中から<b>あなたにいちばんそっくりな1匹</b>を診断します。</p>
+      <div class="chips">
+        <span class="chip">📝 30問</span>
+        <span class="chip">⏱ 1〜2分</span>
+        <span class="chip">🐣 約1000匹から診断</span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("✨ 診断をスタート！", type="primary", use_container_width=True):
         st.session_state.shuffled_questions = random.sample(QUESTIONS, len(QUESTIONS))
         st.session_state.phase = "quiz"
         st.session_state.current_q = 0
         st.session_state.answers = []
+        st.session_state.result = None
+        log_play_event("start")
         st.rerun()
+
+    st.caption(
+        "🔍 981種類のポケモンが結果として出現します。"
+        "本当は全ポケモンを出したかったのですが、性格を示す図鑑説明文が少なかった"
+        "一部のポケモンは、診断の精度を保つため対象外としました。"
+    )
 
 elif st.session_state.phase == "quiz":
     idx = st.session_state.current_q
     quiz_list = st.session_state.shuffled_questions
     total = len(quiz_list)
-    
-    # 最後の回答が終わったら、即座に画面遷移
+
     if idx >= total:
         st.session_state.phase = "loading"
         st.rerun()
-        
-    st.progress(idx / total)
-    st.caption(f"質問 {idx + 1} / {total}")
-    
+
+    pct = int(idx / total * 100)
+    st.markdown(f"""
+    <div class="progress-wrap"><div class="progress-bar" style="width:{pct}%;"></div></div>
+    <div style="text-align:center; color:#999; font-weight:700; margin-bottom:0.6rem;">質問 {idx + 1} / {total}</div>
+    """, unsafe_allow_html=True)
+
     q = quiz_list[idx]
 
-    # スマホ用の操作補足ガイド
-    st.markdown(
-        "<div style='text-align: center; font-size: 0.85rem; color: #777777; margin-bottom: 15px;'>"
-        "← 左/上の文にあてはまる［ 🔴とても ｜ 🔶すこし ］ 🔷すこし ｜ 🔵とても ］右/下の文にあてはまる →"
-        "</div>", 
-        unsafe_allow_html=True
-    )
-    
-    st.write("---")
-    
-    col_left, col1, col2, col3, col4, col_right = st.columns([4, 1.2, 1.2, 1.2, 1.2, 4])
+    with st.container(border=True):
+        st.markdown('<div style="text-align:center; color:#bbb; font-weight:800; margin-bottom:0.5rem;">'
+                    'AとB、どちらに近い？</div>', unsafe_allow_html=True)
 
-    with col_left:
-        st.markdown(f"<div style='text-align: right; font-weight: bold; padding-top: 5px;'>{q['a']}</div>", unsafe_allow_html=True)
-        
-    with col1:
-        if st.button("🔴", help="とてもあてはまる（左側）", key=f"btn_vh_{idx}"):
-            st.session_state.answers.append({"effects": q["effects"], "weight": 1.0})
-            st.session_state.current_q += 1
-            st.rerun()
-            
-    with col2:
-        if st.button("🔶", help="すこしあてはまる（左側）", key=f"btn_vl_{idx}"):
-            st.session_state.answers.append({"effects": q["effects"], "weight": 0.5})
-            st.session_state.current_q += 1
-            st.rerun()
-            
-    with col3:
-        if st.button("🔷", help="すこしあてはまる（右側）", key=f"btn_vr_l_{idx}"):
-            st.session_state.answers.append({"effects": q["effects"], "weight": -0.5})
-            st.session_state.current_q += 1
-            st.rerun()
-            
-    with col4:
-        if st.button("🔵", help="とてもあてはまる（右側）", key=f"btn_vr_h_{idx}"):
-            st.session_state.answers.append({"effects": q["effects"], "weight": -1.0})
-            st.session_state.current_q += 1
-            st.rerun()
-            
-    with col_right:
-        st.markdown(f"<div style='text-align: left; font-weight: bold; padding-top: 5px;'>{q['b']}</div>", unsafe_allow_html=True)
+        st.markdown(f'<div class="side-a"><div class="side-label">'
+                    f'<span class="ab-badge ab-badge-a">A</span>{q["a"]}</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="battle-vs">V S</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="side-b"><div class="side-label">'
+                    f'<span class="ab-badge ab-badge-b">B</span>{q["b"]}</div></div>', unsafe_allow_html=True)
 
-# 演出専用の画面フェーズ
+        st.markdown('<div style="text-align:center; color:#999; font-weight:700; margin: 0.9rem 0 0.5rem 0;">'
+                    '👇 この中から一番近いものを1つだけ選んでね</div>', unsafe_allow_html=True)
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if st.button("とてもAに近い！", key=f"va_{idx}", type="primary", use_container_width=True):
+                st.session_state.answers.append({"effects": q["effects"], "weight": 1.0})
+                st.session_state.current_q += 1
+                st.rerun()
+            if st.button("ややAに近いかな", key=f"sa_{idx}", use_container_width=True):
+                st.session_state.answers.append({"effects": q["effects"], "weight": 0.5})
+                st.session_state.current_q += 1
+                st.rerun()
+        with col_b:
+            if st.button("ややBに近いかな", key=f"sb_{idx}", use_container_width=True):
+                st.session_state.answers.append({"effects": q["effects"], "weight": -0.5})
+                st.session_state.current_q += 1
+                st.rerun()
+            if st.button("とてもBに近い！", key=f"vb_{idx}", type="primary", use_container_width=True):
+                st.session_state.answers.append({"effects": q["effects"], "weight": -1.0})
+                st.session_state.current_q += 1
+                st.rerun()
+
+    if idx > 0:
+        if st.button("⬅ 前の質問に戻る", key=f"back_{idx}"):
+            st.session_state.current_q -= 1
+            st.session_state.answers.pop()
+            st.rerun()
+
 elif st.session_state.phase == "loading":
-    st.write("")
-    st.write("")
-    # 一番見せておきたいメッセージを最初にバシッと表示
-    st.markdown("<h3 style='text-align: center;'>あなたに一番そっくりなポケモンは...</h3>", unsafe_allow_html=True)
-    st.write("")
-    
-    # ユーザーに見える形でじっくり演出を出す
-    with st.spinner("あなたの心とシンクロする仲間を呼び出しています... 🔍"):
-        time.sleep(3.0)  # 3秒間しっかりこの画面をキープして「タメ」を作る
-        
-    # 演出時間が終わったら自動で結果画面へ
+    st.markdown("<h3 style='text-align:center;'>あなたに一番そっくりなポケモンは...</h3>", unsafe_allow_html=True)
+    ph = st.empty()
+    # 軸ごとに「係数の絶対値」で重み付けした加重平均を取る。
+    # 単純に件数で割ると、強い設問(係数1.0)と副次的な設問(係数0.1〜0.3)が
+    # 同じ重みで平均されてしまい、スコアが50点付近に寄って0/100に届きにくくなるため。
+    trait_scores = {a: 0.0 for a in AXES}
+    trait_weight_sum = {a: 0.0 for a in AXES}
+    for ans in st.session_state.answers:
+        for trait, coef in ans["effects"].items():
+            trait_scores[trait] += coef * ans["weight"]
+            trait_weight_sum[trait] += abs(coef)
+
+    user_vector = []
+    for a in AXES:
+        wsum = trait_weight_sum[a]
+        avg = trait_scores[a] / wsum if wsum > 0 else 0.0
+        avg = max(-1.0, min(1.0, avg))
+        user_vector.append(50.0 + 50.0 * avg)
+
+    for msg in LOADING_MESSAGES:
+        ph.markdown(f"<div style='text-align:center; font-size:1.1rem; color:#888;'>{msg}</div>", unsafe_allow_html=True)
+        time.sleep(0.5)
+
+    match = find_match(user_vector)
+    st.session_state.result = {"user_vector": user_vector, "match": match}
+    if match:
+        log_play_event("complete", result_pokemon_id=match["chosen"]["id"], sync_score=match["sync_score"])
+
     st.session_state.phase = "result"
     st.rerun()
 
 elif st.session_state.phase == "result":
-    st.title("🎉 診断結果発表！")
-    st.write("---")
-    
-    # 性格ベクトルの計算
-    trait_scores = {trait: 0.0 for trait in TRAIT_KEYS}
-    trait_counts = {trait: 0 for trait in TRAIT_KEYS}
-    
-    for ans in st.session_state.answers:
-        effects = ans["effects"]
-        weight = ans["weight"]
-        for trait, val in effects.items():
-            if trait in trait_scores:
-                trait_scores[trait] += val * weight
-                trait_counts[trait] += 1
-                
-    user_vector = []
-    for trait in TRAIT_KEYS:
-        count = trait_counts[trait]
-        avg_score = trait_scores[trait] / count if count > 0 else 0.0
-        avg_score = max(-1.0, min(1.0, avg_score))
-        user_vector.append(avg_score)
-        
-    # バックエンドでの計算自体は一瞬で終わる
-    best_poke, similarity_score = find_best_match_pokemon(user_vector)
-    
-    st.markdown(f"### あなたに一番そっくりなポケモンは...")
-    st.success(f"## No.{best_poke['id']} {best_poke['name']}")
-    st.caption(f"あなたとのシンクロ度: {similarity_score * 100:.1f}%")
-    
-    if best_poke.get("image"):
-        col_img_left, col_img_mid, col_img_right = st.columns([1, 2, 1])
-        with col_img_mid:
-            st.image(best_poke["image"], use_container_width=True)
-            
-    st.subheader("📖 このポケモンの特徴（図鑑説明文より）")
-    st.markdown(f"> *{best_poke['description']}*")
-    
-    st.write("---")
-    
-    st.subheader("📊 あなたの性格グラフ")
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(
-        r=user_vector + [user_vector[0]], 
-        theta=TRAIT_KEYS + [TRAIT_KEYS[0]],
-        fill='toself',
-        name='あなた',
-        line_color='#FF4B4B'
-    ))
-    
-    fig.update_layout(
-        polar=dict(
-            radialaxis=dict(
-                visible=True,
-                range=[-1.0, 1.0]
-            )
-        ),
-        showlegend=False
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # 特徴抽出
-    st.subheader("💡 あなたってどんな人？")
-    
-    ranked_traits = []
-    for i, trait in enumerate(TRAIT_KEYS):
-        score = user_vector[i]
-        ranked_traits.append({
-            "trait": trait,
-            "score": score,
-            "abs_score": abs(score)
-        })
-    
-    ranked_traits = sorted(ranked_traits, key=lambda x: x["abs_score"], reverse=True)
-    
-    for item in ranked_traits[:3]:
-        trait = item["trait"]
-        score = item["score"]
-        
-        if score >= 0:
-            st.write(f"🌟 **{trait}** の傾向：{TRAIT_POSITIVE_TEXT[trait]}")
-        else:
-            alt_title = TRAIT_ALTERNATIVE_TITLES[trait]
-            st.write(f"🍀 **{alt_title}** の傾向：{TRAIT_NEGATIVE_TEXT[trait]}")
+    result = st.session_state.result
+    match = result["match"] if result else None
 
-    st.write("---")
-    
-    if st.button("もう一度やってみる！", use_container_width=True):
+    if not match:
+        st.error("診断結果を計算できませんでした。データファイルの中身をご確認ください。")
+        if st.button("最初からやり直す"):
+            st.session_state.phase = "start"
+            st.rerun()
+        st.stop()
+
+    chosen = match["chosen"]
+    sync_score = match["sync_score"]
+    user_vector = result["user_vector"]
+
+    st.markdown(f"""
+    <div class="result-card">
+      <div style="font-size:1rem; color:#a15; font-weight:700;">あなたに一番そっくりなポケモンは…</div>
+      <h2 style="margin:0.3rem 0;">No.{chosen['id']} {chosen['name']}</h2>
+      {'<img src="' + chosen['image'] + '">' if chosen.get('image') else ''}
+      <div><span class="sync-badge">シンクロ度 {sync_score:.1f}%</span></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="sub-card">
+      <div class="personality-line">💡 きみは「{personality_blurb(user_vector)}」</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    share_text = f"私は「{chosen['name']}」タイプでした！(シンクロ度{sync_score:.0f}%) #ポケモン性格診断"
+    share_url = "https://pokemon-personality-checker.streamlit.app/"
+    st.link_button(
+        "🐦 診断結果をXでシェアする",
+        f"https://twitter.com/intent/tweet?text={requests.utils.quote(share_text)}&url={requests.utils.quote(share_url)}",
+        use_container_width=True,
+    )
+
+    if chosen.get("description"):
+        st.markdown(f"""
+        <div class="sub-card"><b>📖 図鑑説明文より</b><br>
+        <span style="color:#555;">{chosen['description']}</span></div>
+        """, unsafe_allow_html=True)
+
+    if chosen.get("evidence"):
+        with st.expander("🔍 診断のポイント"):
+            st.caption(f"図鑑説明文から要約した、{chosen['name']}の性格はこちらです。")
+            st.write(f"→ {chosen['evidence']}")
+
+    if match["runner_ups"]:
+        with st.container(border=True):
+            st.markdown("<b>🥈 あなたと近いタイプの仲間たち</b>"
+                         "<div style='color:#999; font-size:0.8rem; margin-bottom:0.6rem;'>"
+                         "同じ「シンクロ度」の基準で計算した、次点候補です。</div>", unsafe_allow_html=True)
+            cols = st.columns(2)
+            for i, (p, sc) in enumerate(match["runner_ups"]):
+                with cols[i % 2]:
+                    if p.get("image"):
+                        st.image(p["image"], use_container_width=True)
+                    st.markdown(f"<div style='text-align:center; font-weight:700;'>{p['name']}</div>"
+                                 f"<div style='text-align:center; color:#888; font-size:0.85rem;'>シンクロ度 {sc:.0f}%</div>",
+                                 unsafe_allow_html=True)
+
+    with st.container(border=True):
+        st.markdown("<b>📊 あなたの性格グラフ</b>", unsafe_allow_html=True)
+        fig = go.Figure()
+        labels = [AXIS_LABEL[a] for a in AXES]
+        fig.add_trace(go.Scatterpolar(r=user_vector + [user_vector[0]], theta=labels + [labels[0]],
+                                       fill='toself', name='あなた', line_color='#FF4B4B'))
+        fig.add_trace(go.Scatterpolar(r=chosen["vector"] + [chosen["vector"][0]], theta=labels + [labels[0]],
+                                       fill='toself', name=chosen["name"], line_color='#FFA500', opacity=0.5))
+        fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
+                           showlegend=True, margin=dict(t=20, b=20, l=20, r=20), height=380)
+        st.plotly_chart(fig, use_container_width=True)
+
+    with st.expander("💬 ご意見・ご感想（開発者にだけ届きます）"):
+        fb_text = st.text_area("感想", key="fb_text", label_visibility="collapsed", placeholder="ここに入力...")
+        if st.button("送信する", key="fb_submit"):
+            if fb_text.strip():
+                ok = submit_feedback(fb_text.strip(), related_pokemon_id=chosen["id"])
+                if ok:
+                    st.success("送信しました。ありがとうございます！")
+                else:
+                    st.info("送信を受け付けました。")
+            else:
+                st.warning("内容を入力してください。")
+
+    st.write("")
+    if st.button("🔁 もう一度やってみる！", use_container_width=True):
         st.session_state.current_q = 0
         st.session_state.answers = []
         st.session_state.shuffled_questions = []
+        st.session_state.result = None
         st.session_state.phase = "start"
         st.rerun()
