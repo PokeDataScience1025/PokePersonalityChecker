@@ -4,8 +4,8 @@ st.set_page_config(page_title="ポケモン性格診断", page_icon="🔀")
 
 st.markdown(
     """
-以下サイトにお引越ししました。
+お引越ししました。
 
-https://poke-personality-checker-2-0-0.pokecology.workers.dev/
+「ポケモン　性格診断」で検索ください。
 """
 )
